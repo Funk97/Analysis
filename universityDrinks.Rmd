@@ -1,0 +1,236 @@
+---
+title: "University Students' Drinking Data "
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(lubridate)
+library(stringr)
+library(forcats)
+
+```
+
+Cleaning data: 
+- Renaming variables to make them more workable
+- Separating drinks column into minDrinks and maxDrinks and making those variables     numeric
+
+
+```{r }
+drinksDS <- read_csv("Stats survey.csv")
+
+drinksDS %>% 
+  variable.names()
+drinksDS_clean <- drinksDS %>% 
+  rename(gender = "Your Sex?", 
+         collegeYear2023 = "What year were you in last year (2023) ?", 
+         grade12GPA = "Your Matric (grade 12) Average/ GPA (in %)", 
+         major = "What faculty does your degree fall under?", 
+         "2023GPA" = "Your 2023 academic year average/GPA in % (Ignore if you are 2024 1st year student)", 
+         accomodationStatus2023 = "Your Accommodation Status Last Year (2023)", 
+         monthlyAllowance2023 = "Monthly Allowance in 2023", 
+         scholarship2023 = "Were you on scholarship/bursary in 2023?", 
+         studyTime = "Additional amount of studying (in hrs) per week", 
+         partyTime = "How often do you go out partying/socialising during the week?", 
+         drinks = "On a night out, how many alcoholic drinks do you consume?", 
+         missedClasses = "How many classes do you miss per week due to alcohol reasons, (i.e: being hungover or too tired?)", 
+         failedModules = "How many modules have you failed thus far into your studies?", 
+         relationshipStatus = "Are you currently in a romantic relationship?", 
+         parentApproval = "Do your parents approve alcohol consumption?", 
+         parentRelationship = "How strong is your relationship with your parent/s?") %>% 
+  separate(drinks, c("minDrinks", "maxDrinks"), sep = "-", remove = FALSE, convert = TRUE) %>% 
+  mutate(minDrinks = as.numeric(str_remove(minDrinks, "\\+"))) %>% 
+  select(-Timestamp) %>% 
+  as_tibble()
+
+```
+Quick glimpse of data: Variables, Datetypes, descriptive statistics....
+
+```{r}
+drinksDS_clean %>% 
+  summary()
+```
+
+Counts of majors: 
+This data is heavily skewered towards Economic & Management Sciences majors
+
+```{r}
+drinksDS_clean %>% 
+  count(major)
+```
+Counts of gender (Male/Female): 
+Data collected from mostly males
+
+```{r}
+drinksDS_clean %>%
+  count(gender)
+```
+
+
+Counts of grade level in 2023
+
+```{r}
+drinksDS_clean %>% 
+  count(collegeYear2023)
+
+```
+```{r}
+drinksDS_clean %>% 
+  count(accomodationStatus2023)
+```
+Count of how many times students go out per week
+Students seem to go out mostly on weekends
+
+```{r}
+drinksDS_clean %>% 
+  count(partyTime, sort = TRUE)
+```
+
+Count of Students' monthly allowance
+
+```{r}
+
+drinksDS_clean %>% 
+  count(monthlyAllowance2023)
+
+```
+
+Count of Students' relationship status
+
+```{r}
+drinksDS_clean %>% 
+  count(relationshipStatus)
+```
+
+```{r}
+drinksDS_clean %>% 
+  count(failedModules)
+```
+Parent Approval
+
+```{r}
+drinksDS_clean %>% 
+  count(parentApproval)
+```
+Distribution of GPA in Senior Year of high school
+
+```{r}
+drinksDS_clean %>% 
+  group_by(grade12GPA) %>% 
+  summarise(count = n()) %>% 
+  ggplot() + 
+  geom_point(aes(grade12GPA, count)) + 
+  labs(x = "Senior Year GPA in %") 
+```
+Distribution of GPA for 2023 college year
+
+```{r}
+drinksDS_clean %>% 
+  count(`2023GPA`) %>% 
+  ggplot() + 
+  geom_point(aes(`2023GPA`, n)) + 
+  labs(x = "Senior Year GPA in %")
+```
+Run Chi Sq test to see if we have a difference between Males and Females. 
+We cannot reject the null hypothesis
+
+```{r}
+drinksDS_clean %>%
+  count(gender)
+
+studentGender <- drinksDS_clean %>%
+  select(gender) %>% 
+  filter(gender %in% c("Female", 
+                       "Male")) %>% 
+  mutate(gender = fct_drop(gender))
+
+studentGender_table <- table(studentGender)
+View(studentGender_table) 
+
+chisq.test(studentGender_table)
+```
+How many drinks do different gender have when going out
+
+```{r}
+drinksDS_clean %>% 
+  group_by(gender) %>% 
+  filter(gender != is.na(gender)) %>% 
+  count(gender, minDrinks) %>% 
+  ggplot(aes(minDrinks, n, color = gender)) +
+  geom_line() +
+  labs(x = "Minimum amount of drinks when going out", 
+       y = "Count", 
+       title = "Amount of drinks university students have", caption = "Data Source:https://www.kaggle.com/datasets/joshuanaude/effects-of-alcohol-on-student-performance") + 
+  theme(plot.caption = element_text(size = 5, hjust = -.25))+
+  scale_color_brewer(palette = "Dark2")
+```
+
+
+How many drinks do different college year students have when going out
+#Removed Missing Data
+```{r}
+drinksDS_clean %>% 
+  select(collegeYear2023, `2023GPA`, major, grade12GPA, studyTime, partyTime, minDrinks) %>% 
+  group_by(collegeYear2023, minDrinks) %>% 
+  filter(collegeYear2023 != is.na(collegeYear2023)) %>% 
+  summarise(count = n()) %>% 
+  ggplot() + 
+  geom_area(aes(minDrinks, count, fill = collegeYear2023)) + 
+  theme_classic() +
+  labs(x = "Minimum Amount of Drinks When Going Out", fill = "2023 College Year", title = "How many alcoholic drinks do college students have", caption = "Data Source:https://www.kaggle.com/datasets/joshuanaude/effects-of-alcohol-on-student-performance") + 
+  theme(plot.caption = element_text(size = 5, hjust = -.25)) +
+  scale_fill_brewer(palette = "Spectral")
+
+```
+
+How many times a week do different major go out
+
+```{r}
+drinksDS_clean %>%
+  group_by(partyTime, major) %>%
+  filter(major != is.na(major)) %>% 
+  count(partyTime, major, sort = TRUE) %>% 
+  ggplot(aes(fct_reorder(partyTime, n, .fun = sum, .desc = TRUE), n, fill = major)) + 
+  geom_col() + 
+  labs(x = "# of times student go out", 
+       y = "Amount of students that go out", 
+       fill = "Major/Focus",
+  caption = "Data Source:https://www.kaggle.com/datasets/joshuanaude/effects-of-alcohol-on-student-performance") + 
+  theme(plot.caption = element_text(size = 5, hjust = -.25),
+        axis.text.x = element_text(angle = 45, size = 5, vjust = .5))+
+  scale_fill_brewer(palette = "Spectral")
+
+  
+```
+
+How many drinks do different majors have when going out
+
+```{r}
+drinksDS_clean %>% 
+  filter(partyTime == "Only weekends", 
+         major != is.na(major)) %>%  
+  count(major, minDrinks) %>% 
+  mutate(minDrinks = reorder(minDrinks, n, FUN = sum)) %>% 
+  ggplot(aes(minDrinks, n, fill = major)) + 
+  geom_col(aes()) + 
+  labs(title = "How many drinks do different major have on the weekends", 
+       x = "Minimum amount of drinks", 
+       y = "count", 
+       caption = "Data Source:https://www.kaggle.com/datasets/joshuanaude/effects-of-alcohol-on-student-performance")+
+  theme(plot.caption = element_text(size = 5, hjust = -.25),
+        axis.text.x = element_text(angle = 45, size = 5, vjust = .5))+
+  scale_fill_brewer(palette = "Spectral")
+
+```
+
+
+
+
